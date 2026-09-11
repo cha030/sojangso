@@ -9,6 +9,24 @@ const ALLOWED_TYPES = [
   "image/webp",
 ];
 
+function isQuotaError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = error as {
+    status?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
+
+  return (
+    candidate.status === 429 ||
+    candidate.code === 429 ||
+    (typeof candidate.message === "string" &&
+      (candidate.message.includes("429") ||
+        candidate.message.toLowerCase().includes("quota")))
+  );
+}
+
 type RequestedField = {
   key: string;
   label: string;
@@ -191,9 +209,13 @@ candidates는 빈 배열로 반환한다.
       apiKey,
     });
 
+    const startedAt = performance.now();
+
     const interaction = await ai.interactions.create({
       model: "gemini-3.8-flash",
-
+      generation_config: {
+        thinking_level: "low",
+      },
       input: [
         {
           type: "text",
@@ -205,15 +227,21 @@ candidates는 빈 배열로 반환한다.
           mime_type: image.type,
         },
       ],
-
       response_format: [
-  {
-    type: "text",
-    mime_type: "application/json",
-    schema: responseSchema,
-  },
-],
+        {
+          type: "text",
+          mime_type: "application/json",
+          schema: responseSchema,
+        },
+      ],
     });
+
+    console.info(
+      `Gemini analysis completed in ${(
+        (performance.now() - startedAt) /
+        1000
+      ).toFixed(1)}s`
+    );
 
     if (!interaction.output_text) {
       throw new Error("Gemini 응답이 없습니다.");
@@ -226,6 +254,16 @@ candidates는 빈 배열로 반환한다.
     return NextResponse.json(result);
   } catch (error) {
     console.error("Gemini item analysis error:", error);
+
+    if (isQuotaError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.",
+        },
+        { status: 429 }
+      );
+    }
 
     return NextResponse.json(
       {

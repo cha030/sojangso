@@ -3,20 +3,24 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { categoryFields } from "@/lib/collection-fields";
+import {
+  categoryFields,
+  CollectionField,
+} from "@/lib/collection-fields";
 
 const supabase = createClient();
 
 type Field = {
   key: string;
   label: string;
+  mode: CollectionField["mode"];
 };
 
 type Collection = {
   id: string;
   name: string;
   category: string;
-  custom_fields: Field[] | null;
+  custom_fields: CollectionField[] | null;
 };
 
 type AIFieldResult = {
@@ -25,6 +29,19 @@ type AIFieldResult = {
   value: string;
   status: "certain" | "ambiguous" | "unknown";
   candidates: string[];
+};
+
+type ResearchResult = {
+  key: string;
+  label: string;
+  value: string;
+  status: "found" | "ambiguous" | "not_found";
+  note: string;
+};
+
+type ResearchSource = {
+  title: string;
+  url: string;
 };
 
 export default function NewItemPage() {
@@ -55,6 +72,13 @@ export default function NewItemPage() {
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiAnalyzed, setAiAnalyzed] = useState(false);
+  const [researching, setResearching] = useState(false);
+  const [researchResults, setResearchResults] = useState<
+    Record<string, ResearchResult>
+  >({});
+  const [researchSources, setResearchSources] = useState<
+    ResearchSource[]
+  >([]);
 
   useEffect(() => {
     async function loadCollection() {
@@ -81,7 +105,12 @@ export default function NewItemPage() {
       setCollection(data);
 
       if (Array.isArray(data.custom_fields)) {
-        setExtraFields(data.custom_fields);
+        setExtraFields(
+          data.custom_fields.map((field) => ({
+            ...field,
+            mode: field.mode ?? "manual",
+          }))
+        );
       }
     }
 
@@ -103,6 +132,7 @@ export default function NewItemPage() {
     const field: Field = {
       key: crypto.randomUUID(),
       label,
+      mode: "manual",
     };
 
     setExtraFields((prev) => [...prev, field]);
@@ -116,6 +146,8 @@ export default function NewItemPage() {
     setMessage("");
     setAiAnalyzed(false);
     setAiResults({});
+    setResearchResults({});
+    setResearchSources([]);
 
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
@@ -126,21 +158,11 @@ export default function NewItemPage() {
     const defaultFields =
       categoryFields[collection.category] ?? [];
 
-    const fields = [
-      ...defaultFields,
-      ...extraFields.filter(
-        (extra) =>
-          !defaultFields.some(
-            (field) => field.key === extra.key
-          )
-      ),
-    ];
-
     const formData = new FormData();
 
     formData.append("image", file);
     formData.append("category", collection.category);
-    formData.append("fields", JSON.stringify(fields));
+    formData.append("fields", JSON.stringify(defaultFields));
 
     try {
       setAnalyzing(true);
@@ -189,6 +211,69 @@ export default function NewItemPage() {
       );
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function handleResearch() {
+    if (!collection || researching) return;
+
+    const researchFields = extraFields
+      .filter((field) => field.mode === "research")
+      .map(({ key, label }) => ({ key, label }));
+
+    if (researchFields.length === 0) return;
+
+    setResearching(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/research-item", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          category: collection.category,
+          name,
+          metadata,
+          researchFields,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.error || "제품 정보 조회에 실패했습니다."
+        );
+      }
+
+      const nextResults: Record<string, ResearchResult> = {};
+
+      result.results.forEach((field: ResearchResult) => {
+        nextResults[field.key] = field;
+
+        if (
+          (field.status === "found" ||
+            field.status === "ambiguous") &&
+          field.value
+        ) {
+          updateField(field.key, field.value);
+        } else if (field.status === "not_found") {
+          updateField(field.key, "");
+        }
+      });
+
+      setResearchResults(nextResults);
+      setResearchSources(result.sources ?? []);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "제품 정보 조회 중 오류가 발생했습니다."
+      );
+    } finally {
+      setResearching(false);
     }
   }
 
@@ -382,6 +467,7 @@ export default function NewItemPage() {
 
         {fields.map((field) => {
           const aiResult = aiResults[field.key];
+          const researchResult = researchResults[field.key];
 
           return (
             <div key={field.key}>
@@ -401,6 +487,18 @@ export default function NewItemPage() {
                     확인 불가
                   </span>
                 )}
+
+                {researchResult?.status === "ambiguous" && (
+                  <span className="text-xs text-orange-500">
+                    확인 필요
+                  </span>
+                )}
+
+                {researchResult?.status === "not_found" && (
+                  <span className="text-xs text-gray-400">
+                    확인 불가
+                  </span>
+                )}
               </div>
 
               <input
@@ -414,6 +512,12 @@ export default function NewItemPage() {
                 placeholder="직접 입력하세요"
                 className="w-full rounded-xl border p-3"
               />
+
+              {researchResult?.note && (
+                <p className="mt-2 text-sm text-orange-600">
+                  {researchResult.note}
+                </p>
+              )}
 
               {aiResult?.status === "ambiguous" &&
                 aiResult.candidates.length > 0 && (
@@ -450,6 +554,41 @@ export default function NewItemPage() {
             </div>
           );
         })}
+
+        {extraFields.some((field) => field.mode === "research") && (
+          <section>
+            <button
+              type="button"
+              onClick={handleResearch}
+              disabled={researching || analyzing}
+              className="w-full rounded-xl border p-4 font-semibold disabled:opacity-50"
+            >
+              {researching
+                ? "제품 정보를 확인하고 있습니다..."
+                : "추가 정보 확인"}
+            </button>
+
+            {researchSources.length > 0 && (
+              <div className="mt-3 text-sm text-gray-500">
+                <p>참고 출처</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {researchSources.map((source) => (
+                    <li key={source.url}>
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        {source.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
 
         <div>
           <label className="mb-2 block font-medium">

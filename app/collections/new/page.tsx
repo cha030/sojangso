@@ -3,6 +3,10 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  isResearchFieldDuplicate,
+  researchFields,
+} from "@/lib/collection-fields";
 
 const categories = [
   { value: "figure", label: "피규어" },
@@ -21,7 +25,10 @@ export default function NewCollectionPage() {
   const [customCategory, setCustomCategory] = useState("");
   const [goalCount, setGoalCount] = useState("");
   const [description, setDescription] = useState("");
-  const [customFields, setCustomFields] = useState<string[]>([]);
+  const [selectedResearchKeys, setSelectedResearchKeys] = useState<
+    string[]
+  >([]);
+  const [manualFields, setManualFields] = useState<string[]>([]);
   const [newField, setNewField] = useState("");
   const [message, setMessage] = useState("");
 
@@ -30,12 +37,20 @@ export default function NewCollectionPage() {
 
     if (!value) return;
 
-    setCustomFields([...customFields, value]);
+    setManualFields([...manualFields, value]);
     setNewField("");
   }
 
   function removeCustomField(index: number) {
-    setCustomFields(customFields.filter((_, i) => i !== index));
+    setManualFields(manualFields.filter((_, i) => i !== index));
+  }
+
+  function toggleResearchField(key: string) {
+    setSelectedResearchKeys((current) =>
+      current.includes(key)
+        ? current.filter((currentKey) => currentKey !== key)
+        : [...current, key]
+    );
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -58,10 +73,20 @@ export default function NewCollectionPage() {
       custom_category_name: category === "other" ? customCategory : null,
       goal_count: goalCount ? Number(goalCount) : null,
       description: description || null,
-      custom_fields: customFields.map((label) => ({
-        key: crypto.randomUUID(),
-        label,
-      })),
+      custom_fields: [
+        ...researchFields
+          .filter(
+            (field) =>
+              selectedResearchKeys.includes(field.key) &&
+              !isResearchFieldDuplicate(category, field)
+          )
+          .map(({ key, label, mode }) => ({ key, label, mode })),
+        ...manualFields.map((label) => ({
+          key: crypto.randomUUID(),
+          label,
+          mode: "manual",
+        })),
+      ],
     });
 
     if (error) {
@@ -82,6 +107,8 @@ export default function NewCollectionPage() {
       <h1 className="text-2xl font-bold">새 컬렉션</h1>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        <h2 className="text-lg font-semibold">필수</h2>
+
         <div>
           <label className="mb-2 block font-medium">컬렉션 이름</label>
           <input
@@ -119,8 +146,10 @@ export default function NewCollectionPage() {
           )}
         </div>
 
+        <h2 className="pt-2 text-lg font-semibold">선택</h2>
+
         <div>
-          <label className="mb-2 block font-medium">목표 개수 (선택)</label>
+          <label className="mb-2 block font-medium">목표 개수</label>
           <input
             type="number"
             min="1"
@@ -132,7 +161,7 @@ export default function NewCollectionPage() {
         </div>
 
         <div>
-          <label className="mb-2 block font-medium">설명 (선택)</label>
+          <label className="mb-2 block font-medium">설명</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -142,11 +171,44 @@ export default function NewCollectionPage() {
         </div>
 
         <div>
-          <label className="mb-2 block font-medium">
-            AI가 찾아줬으면 하는 추가 항목
-          </label>
+          <label className="block font-medium">추가로 확인할 정보</label>
 
-          <div className="flex gap-2">
+          <p className="mt-1 text-sm text-gray-500">
+            수집품이 식별된 후 추가로 확인하고 싶은 정보를 선택하세요.
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {researchFields.map((field) => {
+              const disabled = isResearchFieldDuplicate(category, field);
+
+              return (
+                <label
+                  key={field.key}
+                  className={`flex items-center gap-3 rounded-lg border p-3 ${
+                    disabled ? "bg-gray-100 text-gray-400" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedResearchKeys.includes(field.key)}
+                    disabled={disabled}
+                    onChange={() => toggleResearchField(field.key)}
+                  />
+                  <span>{field.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-medium">직접 기록할 항목</label>
+
+          <p className="mt-1 text-sm text-gray-500">
+            AI가 알 수 없는 개인 정보를 직접 기록할 수 있습니다.
+          </p>
+
+          <div className="mt-3 flex gap-2">
             <input
               value={newField}
               onChange={(e) => setNewField(e.target.value)}
@@ -164,7 +226,7 @@ export default function NewCollectionPage() {
           </div>
 
           <div className="mt-3 space-y-2">
-            {customFields.map((field, index) => (
+            {manualFields.map((field, index) => (
               <div
                 key={`${field}-${index}`}
                 className="flex items-center justify-between rounded-lg bg-gray-100 p-3"
