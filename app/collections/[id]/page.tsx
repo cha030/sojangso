@@ -1,5 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import CollectionAnalysis from "./collection-analysis";
+import DeleteConfirmation from "@/app/delete-confirmation";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -22,19 +25,50 @@ export default async function CollectionDetailPage({ params }: Props) {
     .from("collections")
     .select("*")
     .eq("id", id)
-    .single();
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   if (!collection) {
     notFound();
   }
 
-  const { data: items } = await supabase
+  const { data: items, error: itemsError } = await supabase
     .from("items")
     .select("id, name, image_path, created_at")
     .eq("collection_id", id)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  const itemCount = items?.length ?? 0;
+  const itemsWithImageUrls = await Promise.all(
+    (items ?? []).map(async (item) => {
+      if (!item.image_path) {
+        return { ...item, imageUrl: null };
+      }
+
+      try {
+        const { data, error } = await supabase.storage
+          .from("collection-images")
+          .createSignedUrl(item.image_path, 60 * 60);
+
+        return {
+          ...item,
+          imageUrl: error ? null : data.signedUrl,
+        };
+      } catch {
+        return { ...item, imageUrl: null };
+      }
+    })
+  );
+
+  const itemCount = itemsWithImageUrls.length;
+  const hasGoalCount =
+    typeof collection.goal_count === "number" && collection.goal_count > 0;
+  const emptySlotCount =
+    !itemsError &&
+    hasGoalCount &&
+    collection.goal_count > itemCount
+      ? Math.floor(collection.goal_count) - itemCount
+      : 0;
 
   const progress =
     collection.goal_count && collection.goal_count > 0
@@ -45,67 +79,118 @@ export default async function CollectionDetailPage({ params }: Props) {
       : null;
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-5 py-8">
-      <Link href="/" className="text-sm">
-        ← 뒤로
-      </Link>
-
-      <section className="mt-6">
-        <h1 className="text-2xl font-bold">{collection.name}</h1>
-
-        {collection.goal_count ? (
-          <>
-            <div className="mt-3 flex justify-between text-sm">
-              <span>
-                {itemCount} / {collection.goal_count}
-              </span>
-              <span>{progress}%</span>
-            </div>
-
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-              <div
-                className="h-full rounded-full bg-black"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </>
-        ) : (
-          <p className="mt-3 text-sm text-gray-500">
-            {itemCount}개 보유
+    <main className="museum-page">
+      <section className="museum-collection-hero">
+        <div>
+          <p className="museum-kicker">나의 전시 공간</p>
+          <h1 className="museum-display-title">{collection.name}</h1>
+          <p className="museum-page-copy">
+            {collection.description || `${itemCount}개의 수집물이 전시되어 있어요.`}
           </p>
+        </div>
+
+        <div className="museum-progress-seal" aria-label={`수집물 ${itemCount}개`}>
+          <strong>{itemCount}</strong>
+          <span>{collection.goal_count ? `/ ${collection.goal_count}` : "개"}</span>
+          <small>{progress !== null ? `${progress}% 채움` : "현재 전시"}</small>
+        </div>
+      </section>
+
+      {collection.goal_count && (
+        <div className="museum-wide-progress" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      )}
+
+      <section className="museum-collection-wall" aria-label="전체 수집물">
+        {itemsError && (
+          <p className="museum-empty-state museum-inline-error">
+            수집물을 불러오지 못했습니다. 다시 시도해주세요.
+          </p>
+        )}
+
+        {!itemsError && itemCount === 0 && (
+          <p className="museum-empty-state">
+            아직 등록된 수집물이 없습니다.
+          </p>
+        )}
+
+        {itemsWithImageUrls.map((item, index) => (
+          <Link
+            key={item.id}
+            href={`/collections/${id}/items/${item.id}`}
+            className="museum-artwork-card"
+          >
+            <div className="museum-artwork-image">
+              {item.imageUrl && (
+                <Image
+                  src={item.imageUrl}
+                  alt={item.name}
+                  fill
+                  sizes="(max-width: 448px) 33vw, 128px"
+                  className="object-contain"
+                  unoptimized
+                />
+              )}
+            </div>
+            <span className="museum-artwork-label">
+              <small>수집물 {String(index + 1).padStart(3, "0")}</small>
+              <strong>{item.name}</strong>
+            </span>
+          </Link>
+        ))}
+
+        {Array.from({ length: emptySlotCount }, (_, index) => (
+          <Link
+            key={`empty-slot-${index}`}
+            href={`/collections/${id}/items/new`}
+            aria-label={`${index + 1}번째 빈 슬롯에 수집물 추가`}
+            className="museum-empty-slot"
+          >
+            <strong>+</strong>
+            <small>비어 있는 전시 공간</small>
+          </Link>
+        ))}
+
+        {(!hasGoalCount || emptySlotCount === 0) && (
+          <Link
+            href={`/collections/${id}/items/new`}
+            aria-label="수집물 추가"
+            className="museum-empty-slot"
+          >
+            <strong>+</strong>
+            <small>수집물 추가</small>
+          </Link>
         )}
       </section>
 
-      <section className="mt-8 grid grid-cols-3 gap-3">
-        {items?.map((item) => (
-          <div key={item.id}>
-            <div className="aspect-square rounded-xl bg-gray-100" />
-            <p className="mt-2 truncate text-sm">{item.name}</p>
-          </div>
-        ))}
-
-        <Link
-          href={`/collections/${id}/items/new`}
-          className="flex aspect-square items-center justify-center rounded-xl border-2 border-dashed text-3xl text-gray-400"
-        >
-          +
-        </Link>
-      </section>
-
-      {itemCount >= 3 && (
-        <button className="mt-10 w-full rounded-xl border p-4 font-semibold">
-          AI 분석
-        </button>
-      )}
+      <CollectionAnalysis
+        collectionId={id}
+        itemCount={itemCount}
+        itemLoadingFailed={Boolean(itemsError)}
+      />
 
       {collection.description && (
-        <section className="mt-8 border-t pt-6">
-          <h2 className="font-semibold">설명</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            {collection.description}
-          </p>
+        <section className="museum-description-panel">
+          <p className="museum-kicker">이 컬렉션에 대하여</p>
+          <h2>컬렉션 설명</h2>
+          <p>{collection.description}</p>
         </section>
       )}
+
+      <section className="museum-danger-zone">
+        <div className="museum-danger-copy">
+          <strong>컬렉션 삭제</strong>
+          <span>컬렉션과 이 안의 모든 수집물을 삭제합니다.</span>
+        </div>
+        <DeleteConfirmation
+          buttonLabel="컬렉션 삭제"
+          title="이 컬렉션을 삭제할까요?"
+          description="컬렉션 내에 기록된 모든 수집물이 함께 삭제됩니다."
+          endpoint={`/api/collections/${id}`}
+          redirectTo="/"
+        />
+      </section>
     </main>
   );
 }

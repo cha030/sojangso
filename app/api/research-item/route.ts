@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_RESEARCH_KEYS = new Set([
   "original_price",
@@ -56,6 +57,28 @@ type Source = {
   title: string;
   url: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isResearchResult(value: unknown): value is ResearchResult {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.key === "string" &&
+    typeof value.label === "string" &&
+    typeof value.value === "string" &&
+    (value.status === "found" ||
+      value.status === "ambiguous" ||
+      value.status === "not_found") &&
+    typeof value.note === "string"
+  );
+}
+
+function isResearchResultArray(value: unknown): value is ResearchResult[] {
+  return Array.isArray(value) && value.every(isResearchResult);
+}
 
 function isQuotaError(error: unknown) {
   if (!error || typeof error !== "object") return false;
@@ -129,6 +152,18 @@ function extractSources(interaction: unknown): Source[] {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -145,6 +180,7 @@ export async function POST(request: Request) {
       typeof body.name !== "string" ||
       !body.metadata ||
       typeof body.metadata !== "object" ||
+      Array.isArray(body.metadata) ||
       !Array.isArray(body.researchFields)
     ) {
       return NextResponse.json(
@@ -206,7 +242,7 @@ ${fieldText}
 
     const ai = new GoogleGenAI({ apiKey });
     const interaction = await ai.interactions.create({
-      model: "gemini-3.8-flash",
+      model: "gemini-3.5-flash-lite",
       input: prompt,
       tools: [{ type: "google_search" }],
       response_format: [
@@ -222,12 +258,29 @@ ${fieldText}
       throw new Error("Gemini 응답이 없습니다.");
     }
 
-    const result = JSON.parse(interaction.output_text) as {
-      results?: ResearchResult[];
-    };
+    const result: unknown = JSON.parse(interaction.output_text);
+
+    if (!isRecord(result) || !isResearchResultArray(result.results)) {
+      throw new Error("Gemini 응답 형식이 올바르지 않습니다.");
+    }
+
+    const results = result.results;
+
+    if (
+      researchFields.some(
+        (field) =>
+          !results.some((resultField) => resultField.key === field.key)
+      )
+    ) {
+      throw new Error("Gemini 응답 형식이 올바르지 않습니다.");
+    }
+
+    const researchKeys = new Set(
+      researchFields.map((field) => field.key)
+    );
 
     return NextResponse.json({
-      results: Array.isArray(result.results) ? result.results : [],
+      results: results.filter((field) => researchKeys.has(field.key)),
       sources: extractSources(interaction),
     });
   } catch (error) {

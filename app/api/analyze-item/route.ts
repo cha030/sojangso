@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -31,6 +32,55 @@ type RequestedField = {
   key: string;
   label: string;
 };
+
+type AnalysisField = RequestedField & {
+  value: string;
+  status: "certain" | "ambiguous" | "unknown";
+  candidates: string[];
+};
+
+type AnalysisResult = {
+  name: string;
+  description: string;
+  fields: AnalysisField[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isRequestedField(value: unknown): value is RequestedField {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.label === "string"
+  );
+}
+
+function isAnalysisField(value: unknown): value is AnalysisField {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.key === "string" &&
+    typeof value.label === "string" &&
+    typeof value.value === "string" &&
+    (value.status === "certain" ||
+      value.status === "ambiguous" ||
+      value.status === "unknown") &&
+    Array.isArray(value.candidates) &&
+    value.candidates.every((candidate) => typeof candidate === "string")
+  );
+}
+
+function isAnalysisResult(value: unknown): value is AnalysisResult {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    Array.isArray(value.fields) &&
+    value.fields.every(isAnalysisField)
+  );
+}
 
 const responseSchema = {
   type: "object",
@@ -89,6 +139,18 @@ const responseSchema = {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -138,16 +200,28 @@ export async function POST(request: Request) {
       );
     }
 
-    let requestedFields: RequestedField[];
+    let parsedFields: unknown;
 
     try {
-      requestedFields = JSON.parse(fieldsRaw);
+      parsedFields = JSON.parse(fieldsRaw);
     } catch {
       return NextResponse.json(
         { error: "필드 형식이 올바르지 않습니다." },
         { status: 400 }
       );
     }
+
+    if (
+      !Array.isArray(parsedFields) ||
+      !parsedFields.every(isRequestedField)
+    ) {
+      return NextResponse.json(
+        { error: "필드 형식이 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+
+    const requestedFields = parsedFields;
 
     const imageBuffer = Buffer.from(
       await image.arrayBuffer()
@@ -188,7 +262,7 @@ Air Speed Turf와 Air Griffey Max 1이 모두 가능하다면
 value는 빈 문자열,
 candidates는 빈 배열로 반환한다.
 
-4. 제품명, 모델명, 제조사, 출시연도 등을
+4. 제품명, 모델명, 제조사, 출시연도, 최초 출시가격 등을
 사진만으로 확정할 수 없다면 그럴듯하게 만들어내지 마라.
 
 5. 컬러웨이처럼
@@ -212,7 +286,7 @@ candidates는 빈 배열로 반환한다.
     const startedAt = performance.now();
 
     const interaction = await ai.interactions.create({
-      model: "gemini-3.8-flash",
+      model: "gemini-3.5-flash-lite",
       generation_config: {
         thinking_level: "low",
       },
@@ -247,11 +321,28 @@ candidates는 빈 배열로 반환한다.
       throw new Error("Gemini 응답이 없습니다.");
     }
 
-    const result = JSON.parse(
-      interaction.output_text
+    const result: unknown = JSON.parse(interaction.output_text);
+
+    if (
+      !isAnalysisResult(result) ||
+      requestedFields.some(
+        (field) =>
+          !result.fields.some(
+            (resultField) => resultField.key === field.key
+          )
+      )
+    ) {
+      throw new Error("Gemini 응답 형식이 올바르지 않습니다.");
+    }
+
+    const requestedKeys = new Set(
+      requestedFields.map((field) => field.key)
     );
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      fields: result.fields.filter((field) => requestedKeys.has(field.key)),
+    });
   } catch (error) {
     console.error("Gemini item analysis error:", error);
 
