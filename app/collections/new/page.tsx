@@ -10,7 +10,7 @@ import {
 
 const categories = [
   { value: "figure", label: "피규어" },
-  { value: "game", label: "게임" },
+  { value: "card", label: "카드" },
   { value: "shoes", label: "신발" },
   { value: "lego", label: "레고" },
   { value: "other", label: "기타" },
@@ -224,7 +224,7 @@ export default function NewCollectionPage() {
             <div><h2>추가로 확인할 정보</h2><p>사진 분석 시 AI가 함께 확인할 항목을 선택하세요.</p></div>
           </div>
 
-          <div className="museum-checkbox-grid">
+          <div className="museum-checkbox-grid museum-research-options">
             {researchFields.map((field) => {
               const disabled = isResearchFieldDuplicate(category, field);
 
@@ -257,7 +257,7 @@ export default function NewCollectionPage() {
               value={newField}
               onChange={(e) => setNewField(e.target.value)}
               className="museum-input"
-              placeholder="예: 구매 장소"
+              placeholder="예: 구매 가격"
             />
 
             <button

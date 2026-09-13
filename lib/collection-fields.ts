@@ -24,6 +24,13 @@ export const categoryFields: Record<
     { key: "region", label: "지역판" },
   ],
 
+  card: [
+    { key: "card_name", label: "카드명" },
+    { key: "series_set", label: "시리즈·세트" },
+    { key: "card_number", label: "카드번호" },
+    { key: "manufacturer", label: "제조사" },
+  ],
+
   shoes: [
     { key: "brand", label: "브랜드" },
     { key: "model", label: "모델" },
@@ -42,11 +49,6 @@ export const categoryFields: Record<
 };
 
 export const researchFields: CollectionField[] = [
-  {
-    key: "original_price",
-    label: "최초 출시가격",
-    mode: "research",
-  },
   {
     key: "release_year",
     label: "출시연도",
@@ -76,7 +78,8 @@ export function isResearchFieldDuplicate(
     return (
       field.key === "product_number" &&
       ((category === "lego" && defaultField.key === "set_number") ||
-        (category === "shoes" && defaultField.key === "model"))
+        (category === "shoes" && defaultField.key === "model") ||
+        (category === "card" && defaultField.key === "card_number"))
     );
   });
 }

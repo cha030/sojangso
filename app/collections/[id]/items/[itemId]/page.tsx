@@ -32,6 +32,21 @@ function getMetadata(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function formatRegisteredDate(value: unknown) {
+  if (typeof value !== "string") return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(date);
+}
+
 export default async function ItemDetailPage({ params }: Props) {
   const { id, itemId } = await params;
   const supabase = await createClient();
@@ -57,7 +72,7 @@ export default async function ItemDetailPage({ params }: Props) {
 
   const { data: item } = await supabase
     .from("items")
-    .select("id, name, image_path, metadata")
+    .select("id, name, image_path, metadata, created_at")
     .eq("id", itemId)
     .eq("collection_id", id)
     .eq("user_id", user.id)
@@ -96,6 +111,7 @@ export default async function ItemDetailPage({ params }: Props) {
         )
     ),
   ];
+  const registeredDate = formatRegisteredDate(item.created_at);
 
   return (
     <main className="museum-page museum-item-page">
@@ -123,6 +139,9 @@ export default async function ItemDetailPage({ params }: Props) {
 
         <div className="museum-item-record">
           <p className="museum-kicker">{collection.name}</p>
+          {registeredDate && (
+            <p className="museum-page-copy">{registeredDate} 등록</p>
+          )}
           <ItemEditForm
             collectionId={id}
             itemId={item.id}

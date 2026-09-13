@@ -37,7 +37,8 @@ export default async function CollectionDetailPage({ params }: Props) {
     .select("id, name, image_path, created_at")
     .eq("collection_id", id)
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   const itemsWithImageUrls = await Promise.all(
     (items ?? []).map(async (item) => {
@@ -144,11 +145,11 @@ export default async function CollectionDetailPage({ params }: Props) {
           <Link
             key={`empty-slot-${index}`}
             href={`/collections/${id}/items/new`}
-            aria-label={`${index + 1}번째 빈 슬롯에 수집물 추가`}
+            aria-label={`${String(itemCount + index + 1).padStart(3, "0")} 빈 슬롯에 수집물 추가`}
             className="museum-empty-slot"
           >
             <strong>+</strong>
-            <small>비어 있는 전시 공간</small>
+            <small>빈 전시 공간 {String(itemCount + index + 1).padStart(3, "0")}</small>
           </Link>
         ))}
 

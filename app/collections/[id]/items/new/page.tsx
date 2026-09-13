@@ -102,6 +102,7 @@ function getAIFields(category: string, extraFields: Field[]) {
   extraFields.forEach((field) => {
     if (
       field.mode !== "research" ||
+      field.key === "original_price" ||
       seenKeys.has(field.key) ||
       isResearchFieldDuplicate(category, {
         key: field.key,

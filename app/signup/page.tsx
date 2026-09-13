@@ -51,10 +51,9 @@ export default function SignupPage() {
       </section>
 
       <section className="museum-auth-form-wrap">
-        <form onSubmit={handleSignup} className="museum-auth-form">
-          <p className="museum-kicker">소장소 입장 등록</p>
+        <form onSubmit={handleSignup} className="museum-auth-form museum-signup-form">
           <h2>회원가입</h2>
-          <p className="museum-page-copy">기록을 시작할 계정을 만들어보세요.</p>
+          <p className="museum-page-copy museum-signup-description">기록을 시작할 계정을 만들어보세요.</p>
 
           <label className="museum-form-field">
             <span className="museum-form-label">이메일</span>
@@ -79,7 +78,7 @@ export default function SignupPage() {
               required
               minLength={6}
             />
-            <small className="museum-page-copy">6자 이상 입력해주세요.</small>
+            <small className="museum-password-hint">6자 이상 입력해주세요.</small>
           </label>
 
           <button

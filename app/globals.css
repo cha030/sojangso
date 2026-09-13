@@ -15,6 +15,13 @@
   --museum-label: #eee7db;
   --museum-line: rgba(65, 67, 59, 0.2);
   --museum-danger: #9e4338;
+  --museum-type-caption: 0.75rem;
+  --museum-type-eyebrow: 0.875rem;
+  --museum-type-meta: 0.8125rem;
+  --museum-type-small: 0.9rem;
+  --museum-type-body: 1rem;
+  --museum-type-label: 0.9375rem;
+  --museum-type-section: 1.125rem;
 }
 
 @theme inline {
@@ -520,13 +527,14 @@ button:disabled { cursor: not-allowed; }
 
 .museum-progress-seal {
   display: grid;
-  width: 98px;
-  height: 98px;
+  width: 128px;
+  height: 128px;
   flex: none;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: max-content max-content;
+  column-gap: 5px;
   place-content: center;
   align-items: baseline;
-  padding: 16px;
+  padding: 20px;
   border: 1px solid rgba(69, 64, 53, 0.2);
   border-radius: 50%;
   background: rgba(250, 248, 241, 0.38);
@@ -676,6 +684,7 @@ button:disabled { cursor: not-allowed; }
 .museum-form-section-heading p { margin: 5px 0 0; color: var(--museum-muted); font-size: 0.68rem; line-height: 1.55; }
 
 .museum-checkbox-grid { display: grid; gap: 8px; }
+.museum-research-options { grid-template-columns: 1fr; }
 .museum-checkbox-row { display: flex; min-height: 46px; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--museum-line); border-radius: 6px; background: rgba(255, 254, 250, 0.76); font-size: 0.76rem; }
 .museum-checkbox-row input { width: 17px; height: 17px; flex: none; accent-color: var(--museum-umber); }
 .museum-checkbox-row:has(input:disabled) { color: #aaa59b; opacity: 0.65; }
@@ -706,6 +715,114 @@ button:disabled { cursor: not-allowed; }
 .museum-candidate-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .museum-chip-button { max-width: 100%; min-height: 38px; overflow-wrap: anywhere; padding: 7px 11px; border: 1px solid var(--museum-line); border-radius: 99px; background: rgba(255, 254, 250, 0.9); color: var(--museum-ink); font-size: 0.7rem; text-align: left; }
 
+/* Small text hierarchy: readable on mobile, with one additional desktop step. */
+.museum-kicker {
+  font-size: var(--museum-type-eyebrow);
+  line-height: 1.5;
+}
+
+.museum-page-copy,
+.museum-auth-copy p:last-child,
+.museum-analysis-results p,
+.museum-description-panel p:last-child,
+.museum-detail-row dd {
+  font-size: var(--museum-type-body);
+  line-height: 1.75;
+}
+
+.museum-back-link,
+.museum-logout-button,
+.museum-inline-error,
+.museum-auth-link,
+.museum-empty-state,
+.museum-analysis-action > p,
+.museum-delete-description,
+.museum-checkbox-row,
+.museum-added-field,
+.museum-upload-artwork,
+.museum-ai-status {
+  font-size: var(--museum-type-small);
+  line-height: 1.65;
+}
+
+.museum-empty-image,
+.museum-card-meta,
+.museum-progress-seal > span,
+.museum-analysis-results h3,
+.museum-danger-copy span,
+.museum-edit-badge,
+.museum-form-section-heading > span,
+.museum-intake-section-heading span,
+.museum-field-state,
+.museum-chip-button {
+  font-size: var(--museum-type-meta);
+  line-height: 1.5;
+}
+
+.museum-exhibition-number,
+.museum-artwork-label small,
+.museum-empty-slot small {
+  font-size: var(--museum-type-caption);
+  line-height: 1.5;
+}
+
+.museum-form-label,
+.museum-danger-copy strong,
+.museum-form-section-heading p,
+.museum-detail-row dt {
+  font-size: var(--museum-type-label);
+  line-height: 1.55;
+}
+
+.museum-form-section-heading h2,
+.museum-intake-section-heading strong,
+.museum-description-panel h2 {
+  font-size: var(--museum-type-section);
+  line-height: 1.35;
+}
+
+.museum-progress-seal strong {
+  font-size: 2.15rem;
+}
+
+.museum-progress-seal > span {
+  font-size: var(--museum-type-small);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.museum-progress-seal small {
+  font-size: var(--museum-type-body);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.museum-signup-form h2 {
+  margin-top: 0;
+}
+
+.museum-signup-description {
+  font-size: var(--museum-type-small);
+  line-height: 1.65;
+}
+
+.museum-password-hint {
+  color: var(--museum-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.museum-item-stage .museum-kicker {
+  font-size: var(--museum-type-section);
+}
+
+.museum-exhibition-info h2,
+.museum-artwork-label strong {
+  font-size: var(--museum-type-body);
+  line-height: 1.45;
+}
+
 @media (hover: hover) {
   :where(button:not(:disabled), a[href]):hover { opacity: 0.86; }
   .museum-primary-button:hover, .museum-secondary-button:hover,
@@ -733,9 +850,10 @@ button:disabled { cursor: not-allowed; }
   .museum-auth-copy {
     position: absolute;
     top: 50%;
-    right: 38px;
+    right: auto;
     left: 38px;
-    transform: translate(60px, -50%);
+    width: min(35rem, calc(100% - 76px));
+    transform: translate(max(60px, calc(50vw - 580px)), -50%);
   }
   .museum-auth-form-wrap { align-self: center; margin: 42px 32px; padding: 52px 34px; }
   .museum-collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 58px 20px; padding-top: 55px; }
@@ -762,12 +880,38 @@ button:disabled { cursor: not-allowed; }
   .museum-form-shell { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
   .museum-form-submit { grid-column: 1 / -1; }
   .museum-checkbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .museum-research-options { grid-template-columns: 1fr; }
   .museum-intake-layout { grid-template-columns: minmax(270px, 0.82fr) minmax(0, 1.18fr); align-items: start; gap: 44px; }
   .museum-upload-column { position: sticky; top: 90px; }
   .museum-intake-form { padding: 31px 27px; }
 }
 
 @media (min-width: 1024px) {
+  :root {
+    --museum-type-caption: 0.8125rem;
+    --museum-type-eyebrow: 1.0625rem;
+    --museum-type-meta: 0.9375rem;
+    --museum-type-small: 1rem;
+    --museum-type-body: 1.0625rem;
+    --museum-type-label: 1rem;
+    --museum-type-section: 1.375rem;
+  }
+
+  .museum-research-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .museum-progress-seal {
+    width: 152px;
+    height: 152px;
+    column-gap: 7px;
+    padding: 24px;
+  }
+
+  .museum-password-hint {
+    font-size: 0.875rem;
+  }
+
   .museum-header-inner { padding-right: 50px; padding-left: 50px; }
   .museum-page { padding: 82px 52px 124px; }
   .museum-collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 62px 22px; }
