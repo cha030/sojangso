@@ -2,12 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import BrandMark from "@/app/brand-mark";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
@@ -33,8 +31,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      window.location.assign(new URL("/", window.location.origin));
     } catch {
       setMessage("로그인 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {

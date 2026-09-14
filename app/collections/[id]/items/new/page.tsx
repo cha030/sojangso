@@ -9,6 +9,9 @@ import {
   CollectionField,
   isResearchFieldDuplicate,
 } from "@/lib/collection-fields";
+import { createCardThumbnail } from "@/lib/card-thumbnail";
+import { prepareImageForAnalysis } from "@/lib/image-processing";
+import { getCardThumbnailPath } from "@/lib/storage-images";
 
 const supabase = createClient();
 
@@ -37,6 +40,9 @@ type AIResponse = {
   name: string;
   description: string;
   fields: AIFieldResult[];
+  verificationAttempted: boolean;
+  verificationStatus: "verified" | "conflict" | "unverified";
+  reason: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -88,7 +94,12 @@ function isAIResponse(value: unknown): value is AIResponse {
     typeof value.name === "string" &&
     typeof value.description === "string" &&
     Array.isArray(value.fields) &&
-    value.fields.every(isAIFieldResult)
+    value.fields.every(isAIFieldResult) &&
+    typeof value.verificationAttempted === "boolean" &&
+    (value.verificationStatus === "verified" ||
+      value.verificationStatus === "conflict" ||
+      value.verificationStatus === "unverified") &&
+    typeof value.reason === "string"
   );
 }
 
@@ -148,6 +159,10 @@ export default function NewItemPage() {
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiAnalyzed, setAiAnalyzed] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<
+    AIResponse["verificationStatus"] | null
+  >(null);
+  const [verificationAttempted, setVerificationAttempted] = useState(false);
 
   useEffect(() => {
     async function loadCollection() {
@@ -225,6 +240,8 @@ export default function NewItemPage() {
     setImageFile(file);
     setMessage("");
     setAiAnalyzed(false);
+    setVerificationStatus(null);
+    setVerificationAttempted(false);
     setAiResults({});
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
@@ -237,21 +254,28 @@ export default function NewItemPage() {
       extraFields
     ).map(({ key, label }) => ({ key, label }));
 
-    const formData = new FormData();
-
-    formData.append("image", file);
-    formData.append("category", collection.category);
-    formData.append("fields", JSON.stringify(analysisFields));
-
     try {
+      const analysisImage = await prepareImageForAnalysis(file);
+      const formData = new FormData();
+
+      formData.append("image", analysisImage);
+      formData.append("category", collection.category);
+      formData.append("fields", JSON.stringify(analysisFields));
+
       const response = await fetch("/api/analyze-item", {
         method: "POST",
         body: formData,
       });
 
-      const result: unknown = await response.json();
+      const result: unknown = await response.json().catch(() => null);
 
       if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error(
+            "AI 분석용 사진을 전송하지 못했습니다. 다시 시도하거나 정보를 직접 입력해주세요."
+          );
+        }
+
         throw new Error(
           getErrorMessage(result, "AI 분석에 실패했습니다.")
         );
@@ -296,6 +320,8 @@ export default function NewItemPage() {
       setMetadata(nextMetadata);
       setAiResults(nextResults);
       setAiAnalyzed(true);
+      setVerificationStatus(result.verificationStatus);
+      setVerificationAttempted(result.verificationAttempted);
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -340,6 +366,13 @@ export default function NewItemPage() {
 
         imagePath = `${user.id}/${collectionId}/${itemId}/image.${extension}`;
 
+        const thumbnailPromise = createCardThumbnail(imageFile).catch(
+          (thumbnailError) => {
+            console.error("Card thumbnail generation failed:", thumbnailError);
+            return null;
+          }
+        );
+
         const { error: uploadError } = await supabase.storage
           .from("collection-images")
           .upload(imagePath, imageFile);
@@ -347,6 +380,21 @@ export default function NewItemPage() {
         if (uploadError) {
           setMessage(`이미지 업로드에 실패했습니다: ${uploadError.message}`);
           return;
+        }
+
+        const thumbnailFile = await thumbnailPromise;
+
+        if (thumbnailFile) {
+          const { error: thumbnailUploadError } = await supabase.storage
+            .from("collection-images")
+            .upload(getCardThumbnailPath(imagePath), thumbnailFile);
+
+          if (thumbnailUploadError) {
+            console.error(
+              "Card thumbnail upload failed:",
+              thumbnailUploadError
+            );
+          }
         }
       }
 
@@ -477,11 +525,17 @@ export default function NewItemPage() {
               <span>{aiAnalyzed ? "분석 결과 확인" : "직접 입력 가능"}</span>
             </div>
 
-            <p className="museum-ai-status">
-              {aiAnalyzed
-                ? "확인하지 못한 정보는 직접 입력해주세요. AI가 입력한 정보도 자유롭게 수정할 수 있어요."
-                : "사진을 등록하면 AI가 수집물 정보를 찾아 입력해드려요. 결과가 정확하지 않다면 사진을 다시 등록하거나 직접 수정할 수 있어요."}
-            </p>
+            {(!aiAnalyzed || verificationAttempted) && (
+              <p className="museum-ai-status">
+                {!aiAnalyzed
+                  ? "사진을 등록하면 AI가 수집물 정보를 찾아 입력해드려요. 결과가 정확하지 않다면 사진을 다시 등록하거나 직접 수정할 수 있어요."
+                  : verificationStatus === "verified"
+                    ? "외부 검색 근거와 일치하는 식별 결과입니다. 필요하면 자유롭게 수정할 수 있어요."
+                    : verificationStatus === "conflict"
+                      ? "충분한 외부 근거와 충돌한 항목을 수정했습니다. 저장 전 확인해주세요."
+                      : "외부 근거로는 확인할 수 없어 Vision 분석 결과를 유지했습니다. 필요한 정보는 직접 확인해주세요."}
+              </p>
+            )}
 
             <label className="museum-form-field">
               <span className="museum-form-label">이름</span>
@@ -524,7 +578,7 @@ export default function NewItemPage() {
                     className="museum-input"
                   />
 
-                  {aiResult?.status === "ambiguous" && aiResult.candidates.length > 0 && (
+                  {aiResult?.status === "ambiguous" && (
                     <span className="museum-candidate-list">
                       {aiResult.candidates.map((candidate) => (
                         <button

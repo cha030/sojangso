@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import CollectionAnalysis from "./collection-analysis";
 import DeleteConfirmation from "@/app/delete-confirmation";
 import { createClient } from "@/lib/supabase/server";
+import { createCardImageSignedUrl } from "@/lib/storage-images";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -47,13 +48,14 @@ export default async function CollectionDetailPage({ params }: Props) {
       }
 
       try {
-        const { data, error } = await supabase.storage
-          .from("collection-images")
-          .createSignedUrl(item.image_path, 60 * 60);
+        const imageUrl = await createCardImageSignedUrl(
+          supabase,
+          item.image_path
+        );
 
         return {
           ...item,
-          imageUrl: error ? null : data.signedUrl,
+          imageUrl,
         };
       } catch {
         return { ...item, imageUrl: null };

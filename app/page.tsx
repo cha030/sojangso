@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createCardImageSignedUrl } from "@/lib/storage-images";
 
 function LoadError() {
   return (
@@ -73,13 +74,11 @@ export default async function HomePage() {
       }
 
       try {
-        const { data, error } = await supabase.storage
-          .from("collection-images")
-          .createSignedUrl(imagePath, 60 * 60);
+        const imageUrl = await createCardImageSignedUrl(supabase, imagePath);
 
         return {
           ...collection,
-          imageUrl: error ? null : data.signedUrl,
+          imageUrl,
         };
       } catch {
         return {

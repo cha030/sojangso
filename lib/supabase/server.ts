@@ -18,7 +18,7 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // Server Component에서는 쿠키 쓰기가 제한될 수 있음
+            // Server Component의 쿠키 쓰기는 제한될 수 있으며 Proxy가 세션 갱신을 담당한다.
           }
         },
       },

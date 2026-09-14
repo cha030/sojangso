@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCardThumbnailPath } from "@/lib/storage-images";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -62,6 +63,7 @@ export async function DELETE(_request: Request, { params }: Context) {
         .filter((path): path is string => typeof path === "string")
     ),
   ];
+  const thumbnailPaths = imagePaths.map(getCardThumbnailPath);
 
   for (let index = 0; index < imagePaths.length; index += STORAGE_DELETE_BATCH_SIZE) {
     const { error: storageError } = await supabase.storage
@@ -72,6 +74,23 @@ export async function DELETE(_request: Request, { params }: Context) {
       return Response.json(
         { message: "컬렉션의 수집물 이미지를 삭제하지 못했습니다." },
         { status: 500 }
+      );
+    }
+  }
+
+  for (
+    let index = 0;
+    index < thumbnailPaths.length;
+    index += STORAGE_DELETE_BATCH_SIZE
+  ) {
+    const { error: thumbnailStorageError } = await supabase.storage
+      .from("collection-images")
+      .remove(thumbnailPaths.slice(index, index + STORAGE_DELETE_BATCH_SIZE));
+
+    if (thumbnailStorageError) {
+      console.error(
+        "Collection card thumbnail deletion failed:",
+        thumbnailStorageError
       );
     }
   }
