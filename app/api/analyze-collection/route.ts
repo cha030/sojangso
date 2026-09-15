@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit";
 import { categoryFields } from "@/lib/collection-fields";
 import { createClient } from "@/lib/supabase/server";
 
@@ -234,6 +235,9 @@ ${itemText}
 7. 특정 제품을 확실하게 추천하기 어려우면 recommendation_type을 "direction"으로 하고 일반적인 다음 수집 방향을 제안한다.
 8. 외부 검색 없이 제공된 정보만 사용하고, 존재 여부가 불확실한 상품명을 만들지 않는다.
 9. 모든 문장은 간결하고 자연스러운 한국어로 작성한다.
+10. recommendation_type이 "item"인 경우, 이번 분석에서 발견한 collection_pattern과 직접적으로 연결되는 후보를 우선하고, recommendation_reason에서 그 연결 관계를 설명한다.
+11. recommendation_type이 "item"인 경우, [저장된 아이템]에 이미 포함된 아이템을 추천하지 않는다. 동일 제품으로 명백하게 판단되는 표기 차이와 약칭도 가능한 범위에서 피한다.
+12. 패턴과 연결되는 특정 제품의 존재나 적합성을 충분히 확신할 수 없다면 억지로 특정 제품을 생성하지 말고 기존 규칙대로 recommendation_type을 "direction"으로 한다.
 `;
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -243,6 +247,15 @@ ${itemText}
         { error: "GEMINI_API_KEY가 설정되지 않았습니다." },
         { status: 500 }
       );
+    }
+
+    const rateLimitResponse = await enforceAiRateLimit(
+      supabase,
+      "analyze-collection"
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const ai = new GoogleGenAI({ apiKey });

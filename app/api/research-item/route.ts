@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { RAG_VERIFICATION_ENABLED } from "@/lib/ai-config";
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_RESEARCH_KEYS = new Set([
@@ -164,6 +166,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!RAG_VERIFICATION_ENABLED) {
+      return NextResponse.json(
+        { error: "제품 정보 조회 기능은 현재 비활성화되어 있습니다." },
+        { status: 503 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -239,6 +248,15 @@ ${fieldText}
 - ambiguous이면 가장 근거 있는 값을 value에 넣을 수 있지만 note에 확정하기 어려운 이유를 짧게 설명한다.
 - 모든 조사 항목을 results에 포함하고 key와 label은 입력 그대로 유지한다.
 `;
+
+    const rateLimitResponse = await enforceAiRateLimit(
+      supabase,
+      "research-item"
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const ai = new GoogleGenAI({ apiKey });
     const interaction = await ai.interactions.create({

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { RAG_VERIFICATION_ENABLED } from "@/lib/ai-config";
+import { enforceAiRateLimit } from "@/lib/ai-rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
   createIdentification,
@@ -8,7 +10,6 @@ import {
 } from "@/lib/item-verification";
 
 const MAX_FILE_SIZE = Math.floor(3.5 * 1024 * 1024);
-const RAG_VERIFICATION_ENABLED = false;
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -289,6 +290,15 @@ ${fieldText}
 - name은 정확한 공식 제품명을 알 수 없어도, 확인 가능한 대상과 제품 유형을 조합한 일반적 이름을 사용할 수 있다. 이를 공식 제품명으로 속이지 마라.
 - requested field의 key와 label은 절대 변경하지 말고, 모든 requested field를 fields 배열에 포함하라.
 `;
+
+    const rateLimitResponse = await enforceAiRateLimit(
+      supabase,
+      "analyze-item"
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const ai = new GoogleGenAI({
       apiKey,
