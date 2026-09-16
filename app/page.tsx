@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -136,7 +137,14 @@ export default async function HomePage() {
                 >
                   <div className="museum-exhibition-image">
                     {collection.imageUrl ? (
-                      <img src={collection.imageUrl} alt={collection.name} />
+                      <Image
+                        src={collection.imageUrl}
+                        alt={collection.name}
+                        fill
+                        sizes="(max-width: 448px) 33vw, 128px"
+                        className="object-contain"
+                        unoptimized
+                      />
                     ) : (
                       <span className="museum-empty-image">아직 수집물 없음</span>
                     )}

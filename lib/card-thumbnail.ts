@@ -41,7 +41,9 @@ function loadImageElement(file: File): Promise<DecodedImage> {
 async function decodeImage(file: File): Promise<DecodedImage> {
   if (typeof createImageBitmap === "function") {
     try {
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(file, {
+        imageOrientation: "from-image",
+      });
 
       if (bitmap.width && bitmap.height) {
         return {
@@ -99,8 +101,6 @@ export async function createCardThumbnail(file: File): Promise<File> {
 
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(decodedImage.source, 0, 0, canvas.width, canvas.height);
 
     const blob = await encodeThumbnail(canvas);
