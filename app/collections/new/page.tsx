@@ -77,6 +77,17 @@ export default function NewCollectionPage() {
     e.preventDefault();
     if (saving) return;
 
+    const goalCountValue = goalCount.trim();
+    const parsedGoalCount = goalCountValue ? Number(goalCountValue) : null;
+
+    if (
+      parsedGoalCount !== null &&
+      (!Number.isInteger(parsedGoalCount) || parsedGoalCount < 1)
+    ) {
+      setMessage("목표 개수는 1 이상의 정수로 입력해주세요.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
@@ -96,7 +107,9 @@ export default function NewCollectionPage() {
         category,
         custom_category_name:
           category === "other" ? customCategory : null,
-        goal_count: goalCount ? Number(goalCount) : null,
+        ...(parsedGoalCount === null
+          ? {}
+          : { goal_count: parsedGoalCount }),
         description: description || null,
         custom_fields: [
           ...researchFields
@@ -200,11 +213,16 @@ export default function NewCollectionPage() {
             <input
               type="number"
               min="1"
+              step="1"
               value={goalCount}
               onChange={(e) => setGoalCount(e.target.value)}
               className="museum-input"
               placeholder="예: 30"
+              aria-describedby="goal-count-help"
             />
+            <small id="goal-count-help" className="museum-field-message">
+              목표가 없다면 비워두세요.
+            </small>
           </label>
 
           <label className="museum-form-field">

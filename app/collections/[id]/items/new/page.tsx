@@ -138,6 +138,7 @@ export default function NewItemPage() {
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const savingRef = useRef(false);
 
   const [collection, setCollection] = useState<Collection | null>(null);
 
@@ -336,7 +337,10 @@ export default function NewItemPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    if (!collection || saving || analyzing) return;
+    if (!collection || savingRef.current || analyzing) return;
+
+    savingRef.current = true;
+    let saveSucceeded = false;
 
     flushSync(() => {
       setSaving(true);
@@ -416,12 +420,16 @@ export default function NewItemPage() {
         return;
       }
 
+      saveSucceeded = true;
       router.push(`/collections/${collectionId}`);
       router.refresh();
     } catch {
       setMessage("아이템을 저장하지 못했습니다. 다시 시도해주세요.");
     } finally {
-      setSaving(false);
+      if (!saveSucceeded) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
