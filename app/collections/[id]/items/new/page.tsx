@@ -472,7 +472,7 @@ export default function NewItemPage() {
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={analyzing || saving}
-                className="museum-secondary-button"
+                className="museum-secondary-button museum-camera-button"
               >
                 {analyzing ? "분석 중..." : "사진 찍기"}
               </button>
@@ -490,7 +490,7 @@ export default function NewItemPage() {
             <input
               ref={cameraInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               capture="environment"
               disabled={analyzing || saving}
               className="hidden"

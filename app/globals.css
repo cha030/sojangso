@@ -660,9 +660,9 @@ button:disabled { cursor: not-allowed; }
   margin: 0 -18px;
   padding: 38px 36px 52px;
   border-top: 1px solid rgba(75, 68, 55, 0.14);
-  background: radial-gradient(ellipse 58% 58% at 50% 0%, rgba(255, 236, 172, 0.38), transparent 72%), #4a4135;
+  background: transparent;
 }
-.museum-item-stage .museum-kicker { margin-bottom: 14px; color: #e5c896; }
+.museum-item-stage .museum-kicker { margin-bottom: 14px; color: var(--museum-umber); }
 .museum-item-image { position: relative; aspect-ratio: 4 / 5; overflow: hidden; background: var(--museum-wall-deep); box-shadow: inset 0 0 0 8px #fbf8f0, 0 30px 45px -26px rgba(42, 36, 28, 0.8); }
 .museum-item-image img { padding: 8px; object-fit: contain; }
 .museum-item-record { min-width: 0; }
@@ -898,6 +898,8 @@ button:disabled { cursor: not-allowed; }
   .museum-research-options { grid-template-columns: 1fr; }
   .museum-intake-layout { grid-template-columns: minmax(270px, 0.82fr) minmax(0, 1.18fr); align-items: start; gap: 44px; }
   .museum-upload-column { position: sticky; top: 90px; }
+  .museum-upload-actions { grid-template-columns: 1fr; }
+  .museum-camera-button { display: none; }
   .museum-intake-form { padding: 31px 27px; }
 }
 
