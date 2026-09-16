@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import CollectionAnalysis from "./collection-analysis";
 import DeleteConfirmation from "@/app/delete-confirmation";
 import { createClient } from "@/lib/supabase/server";
-import { createCardImageSignedUrl } from "@/lib/storage-images";
+import { createCardThumbnailSignedUrls } from "@/lib/storage-images";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -22,46 +22,42 @@ export default async function CollectionDetailPage({ params }: Props) {
     redirect("/login");
   }
 
-  const { data: collection } = await supabase
-    .from("collections")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [collectionResult, itemsResult] = await Promise.all([
+    supabase
+      .from("collections")
+      .select("name, description, goal_count")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("items")
+      .select("id, name, image_path, created_at")
+      .eq("collection_id", id)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
+  ]);
+
+  const { data: collection } = collectionResult;
+  const { data: items, error: itemsError } = itemsResult;
 
   if (!collection) {
     notFound();
   }
 
-  const { data: items, error: itemsError } = await supabase
-    .from("items")
-    .select("id, name, image_path, created_at")
-    .eq("collection_id", id)
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-
-  const itemsWithImageUrls = await Promise.all(
-    (items ?? []).map(async (item) => {
-      if (!item.image_path) {
-        return { ...item, imageUrl: null };
-      }
-
-      try {
-        const imageUrl = await createCardImageSignedUrl(
-          supabase,
-          item.image_path
-        );
-
-        return {
-          ...item,
-          imageUrl,
-        };
-      } catch {
-        return { ...item, imageUrl: null };
-      }
-    })
+  const imagePaths = (items ?? []).flatMap((item) =>
+    item.image_path ? [item.image_path] : []
   );
+  const signedUrlByImagePath = await createCardThumbnailSignedUrls(
+    supabase,
+    imagePaths
+  );
+  const itemsWithImageUrls = (items ?? []).map((item) => ({
+    ...item,
+    imageUrl: item.image_path
+      ? signedUrlByImagePath.get(item.image_path) ?? null
+      : null,
+  }));
 
   const itemCount = itemsWithImageUrls.length;
   const hasGoalCount =
