@@ -295,6 +295,12 @@ button:disabled { cursor: not-allowed; }
   border-color: var(--museum-umber);
   box-shadow: 0 0 0 3px rgba(77, 72, 62, 0.1);
 }
+.museum-input-success { border-color: var(--museum-umber); }
+.museum-input-error { border-color: var(--museum-danger); }
+.museum-input-error:focus {
+  border-color: var(--museum-danger);
+  box-shadow: 0 0 0 3px rgba(158, 67, 56, 0.1);
+}
 .museum-textarea { min-height: 112px; resize: vertical; }
 
 .museum-auth-page {
@@ -812,6 +818,15 @@ button:disabled { cursor: not-allowed; }
   font-size: 0.8125rem;
   line-height: 1.5;
 }
+
+.museum-field-message {
+  color: var(--museum-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.museum-field-message-success { color: var(--museum-umber); }
+.museum-field-message-error { color: var(--museum-danger); }
 
 .museum-item-stage .museum-kicker {
   font-size: var(--museum-type-section);
